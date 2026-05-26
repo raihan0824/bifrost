@@ -7258,7 +7258,8 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 			modelSupported := hasValue && key.Models.IsAllowed(model) && !key.BlacklistedModels.IsBlocked(model)
 			if baseProviderType == schemas.VLLM && key.VLLMKeyConfig != nil {
 				if key.VLLMKeyConfig.ModelName != "" {
-					modelSupported = modelSupported && (key.VLLMKeyConfig.ModelName == model)
+					// Resolve aliases so callers can address the served model via an alias name.
+					modelSupported = modelSupported && (key.VLLMKeyConfig.ModelName == key.Aliases.Resolve(model))
 				}
 			}
 			if modelSupported {

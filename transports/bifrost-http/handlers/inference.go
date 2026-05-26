@@ -882,6 +882,15 @@ func (h *CompletionHandler) listModels(ctx *fasthttp.RequestCtx) {
 	if resp != nil && resp.ExtraFields.ProviderResponseHeaders != nil {
 		forwardProviderHeaders(ctx, resp.ExtraFields.ProviderResponseHeaders)
 	}
+	// Drop the "vllm/" prefix from outgoing model IDs so client catalogs show
+	// bare names. We strip here (after governance and other plugins have run on
+	// the prefixed IDs) to avoid breaking provider-scoped filtering.
+	if resp != nil {
+		const vllmPrefix = "vllm/"
+		for i := range resp.Data {
+			resp.Data[i].ID = strings.TrimPrefix(resp.Data[i].ID, vllmPrefix)
+		}
+	}
 	// Send successful response
 	SendJSON(ctx, resp)
 }

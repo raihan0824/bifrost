@@ -342,46 +342,53 @@ export function ApiKeyFormFragment({ control, providerName, form }: Props) {
 							</FormItem>
 						)}
 					/>
-					<FormField
-						control={control}
-						name={`key.aliases`}
-						render={({ field }) => (
-							<FormItem data-testid="apikey-aliases-field">
-								<FormLabel>Aliases (Optional)</FormLabel>
-								<FormDescription>
-									Map each request model name to the provider&apos;s identifier (deployment name, inference profile ID, fine-tuned endpoint
-									ID, etc.) or just a custom name, e.g. &quot;claude-sonnet-4-5&quot; -&gt; &quot;custom-claude-4.5-sonnet&quot;.
-								</FormDescription>
-								<FormControl>
-									<div data-testid="apikey-aliases-table">
-										<HeadersTable
-											label=""
-											value={normalizeAliasesValue(field.value)}
-											onChange={(next) => {
-												form.clearErrors("key.aliases");
-												field.onChange(Object.keys(next).length > 0 ? next : {});
-											}}
-											keyPlaceholder="Request model name"
-											valuePlaceholder="Deployment / profile / resource ID"
-											renderValueInput={({ value: cellValue, onChange, placeholder, disabled }: CellRenderParams) => (
-												<ModelMultiselect
-													isSingleSelect
-													provider={providerName}
-													value={cellValue}
-													onChange={onChange}
-													placeholder={placeholder ?? "Deployment / profile / resource ID"}
-													disabled={disabled}
-													unfiltered={true}
-												/>
-											)}
-										/>
-									</div>
-								</FormControl>
-								<FormMessage />
-							</FormItem>
-						)}
-					/>
 				</>
+			)}
+			{!isKeylessProvider && (
+				<FormField
+					control={control}
+					name={`key.aliases`}
+					render={({ field }) => (
+						<FormItem data-testid="apikey-aliases-field">
+							<FormLabel>Aliases (Optional)</FormLabel>
+							<FormDescription>
+								{isVLLM
+									? "Map alternate request model names to this key's served model. The target must match the Model Name above, e.g. \"qwen-fast\" -> \"Qwen/Qwen3-30B-A3B-Instruct-2507-FP8\"."
+									: "Map each request model name to the provider's identifier (deployment name, inference profile ID, fine-tuned endpoint ID, etc.) or just a custom name, e.g. \"claude-sonnet-4-5\" -> \"custom-claude-4.5-sonnet\"."}
+							</FormDescription>
+							<FormControl>
+								<div data-testid="apikey-aliases-table">
+									<HeadersTable
+										label=""
+										value={normalizeAliasesValue(field.value)}
+										onChange={(next) => {
+											form.clearErrors("key.aliases");
+											field.onChange(Object.keys(next).length > 0 ? next : {});
+										}}
+										keyPlaceholder="Request model name"
+										valuePlaceholder={isVLLM ? "Served model name (must match Model Name)" : "Deployment / profile / resource ID"}
+										renderValueInput={
+											isVLLM
+												? undefined
+												: ({ value: cellValue, onChange, placeholder, disabled }: CellRenderParams) => (
+														<ModelMultiselect
+															isSingleSelect
+															provider={providerName}
+															value={cellValue}
+															onChange={onChange}
+															placeholder={placeholder ?? "Deployment / profile / resource ID"}
+															disabled={disabled}
+															unfiltered={true}
+														/>
+													)
+										}
+									/>
+								</div>
+							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
 			)}
 			{supportsBatchAPI && !isBedrock && !isAzure && <BatchAPIFormField control={control} form={form} />}
 			{isAzure && (

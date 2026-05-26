@@ -18,37 +18,56 @@
   
   # --- Go Build Stage: Compile the Go binary ---
   FROM golang:1.26.2-alpine3.23@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1 AS builder
-  WORKDIR /app
-  
+  WORKDIR /build
+
   # Install dependencies including gcc for CGO and sqlite (with latest security patches)
   RUN apk upgrade --no-cache && \
     apk add --no-cache gcc musl-dev sqlite-dev binutils binutils-gold
-  
+
   # Set environment for CGO-enabled build (required for go-sqlite3)
   ENV CGO_ENABLED=1 GOOS=linux
-  
-  COPY transports/go.mod transports/go.sum ./
-  RUN ls
-  RUN cat go.mod
-  RUN go mod download
-  
-  # Copy source code and dependencies
-  COPY transports/ ./
-  
-  COPY --from=ui-builder /app/out ./bifrost-http/ui
-  
+
+  # Copy all Go modules from the monorepo. transports/ depends on local versions
+  # of core/framework/plugins that may be ahead of their published proxy versions,
+  # so we wire them together via a Go workspace below.
+  COPY core/       ./core/
+  COPY framework/  ./framework/
+  COPY plugins/    ./plugins/
+  COPY transports/ ./transports/
+
+  RUN go work init && \
+    go work use \
+      ./core \
+      ./framework \
+      ./transports \
+      ./plugins/compat \
+      ./plugins/governance \
+      ./plugins/jsonparser \
+      ./plugins/logging \
+      ./plugins/maxim \
+      ./plugins/mocker \
+      ./plugins/otel \
+      ./plugins/prompts \
+      ./plugins/semanticcache \
+      ./plugins/telemetry
+
+  COPY --from=ui-builder /app/out ./transports/bifrost-http/ui
+
   # Build the binary with CGO enabled and static SQLite linking
-  ENV GOWORK=off
   ARG VERSION=unknown
+  WORKDIR /build/transports
   RUN go build \
     -ldflags="-w -s -X main.Version=v${VERSION} -extldflags '-static'" \
     -a -trimpath \
     -tags "sqlite_static" \
     -o /app/main \
     ./bifrost-http
-  
+
   # Verify build succeeded
   RUN test -f /app/main || (echo "Build failed" && exit 1)
+
+  # Place entrypoint script at the path the runtime stage expects
+  RUN cp /build/transports/docker-entrypoint.sh /app/docker-entrypoint.sh
   
   # --- Runtime Stage: Minimal runtime image ---
   FROM alpine:3.21.7@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
